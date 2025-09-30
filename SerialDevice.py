@@ -8,6 +8,8 @@ class SerialDevice(MachineInterface):
         self.comPort = "COM"+comAddress
         try:
             self.serialConnection = Serial(self.comPort, baudrate=9600, timeout=1)
+            if self.serialConnection and self.serialConnection.is_open:
+                print(f"Serial device {self.name} connected on {self.comPort}")
         except Exception as e:
             print(f"Failed to connect to serial port {self.comPort}: {e}")
             self.serialConnection = None
