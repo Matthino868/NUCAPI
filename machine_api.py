@@ -47,8 +47,6 @@ def buildmachines():
                     name=devices[dev].name
                 )
                 machines.append(machine)
-
-                print(f"Serial device {machine.name} connected on {machine.comPort}")
             except Exception as e:
                 print(f"[WARN] Could not open serial port: {e}")
         elif devices[dev].comType == "ethernet":
@@ -73,9 +71,14 @@ def buildmachines():
 
 def validate_config(config: Dict[str, Any]) -> bool:
     """Validate the structure of the config.json file."""
+    print("Validating config:", config)
     REQUIRED_DEVICE_FIELDS = ["comAddress", "name", "description", "comType", "execCommand"]
     if "name" not in config or "description" not in config:
         print("[ERROR] Config missing top-level 'name' or 'description'")
+        return False
+    
+    if not config.get("name") or not isinstance(config["name"], str) or config["name"].strip() == "":
+        print("[ERROR] Config 'name' must be a non-empty string")
         return False
 
     if "devices" not in config or not isinstance(config["devices"], dict):
@@ -87,7 +90,11 @@ def validate_config(config: Dict[str, Any]) -> bool:
             if field not in dev:
                 print(f"[ERROR] Device '{dev_id}' missing required field '{field}'")
                 return False
-
+            
+        if dev_id not in devices:
+            print(f"[ERROR] Device '{dev_id}' not found in devices.json")
+            return False
+        
         # Extra check: ensure comType is valid
         if dev["comType"] not in ("usb", "ethernet"):
             print(f"[ERROR] Device '{dev_id}' has invalid comType '{dev['comType']}'")
@@ -102,14 +109,13 @@ def validate_config(config: Dict[str, Any]) -> bool:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Starting up... initializing devices")
-    if not validate_config(app.state.nuc_model):
-        print("[FATAL] Invalid configuration. Exiting.")
-        
-    buildmachines()
+    if not validate_config(nucs):
+        print("[FATAL] Invalid configuration")
+    else:
+        buildmachines()
     
     # hand over control to FastAPI
     yield
-
     # ---- Shutdown cleanup ----
     print("Shutting down... closing connections")
 
@@ -150,7 +156,7 @@ def get_config():
 @app.post("/config")
 def update_config(config: NucModel):
     if not validate_config(config.model_dump()):
-        print("Invalid configuration")
+        print("Invalid configuration. Returning 422.")
         return Response(content=json.dumps({"error": "Invalid configuration"}), status_code=422, media_type="application/json")
     app.state.nuc_model = config
     with open("nucs.json", "w") as f:
