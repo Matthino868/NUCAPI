@@ -71,7 +71,7 @@ def buildmachines():
 
 def validate_config(config: Dict[str, Any]) -> bool:
     """Validate the structure of the config.json file."""
-    print("Validating config:", config)
+    # print("Validating config:", config)
     REQUIRED_DEVICE_FIELDS = ["comAddress", "name", "description", "comType", "execCommand"]
     if "name" not in config or "description" not in config:
         print("[ERROR] Config missing top-level 'name' or 'description'")
@@ -133,7 +133,7 @@ app.add_middleware(
 with open("devices.json", "r") as f:
     raw_devices = json.load(f)
     devices = {name: DeviceProfile(**profile) for name, profile in raw_devices.items()}
-    print("DEVICES: ", devices)
+    # print("DEVICES: ", devices)
     
 with open("nucs.json", "r") as f:
     nucs = json.load(f)
@@ -142,7 +142,7 @@ with open("nucs.json", "r") as f:
         description=nucs["description"],
         devices=nucs["devices"]
     )
-    print("NUC: ", app.state.nuc_model)
+    # print("NUC: ", app.state.nuc_model)
 
 
 @app.get("/devices")
@@ -199,7 +199,6 @@ def get_status():
 
 @app.get("/read/{device}")
 async def read(device: str):
-    print(machines)
     machine = next((machine for machine in machines if machine.device_id == device), None)
     if machine is None:
         return {"error": f"Device {device} not found"}
