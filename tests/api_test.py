@@ -7,7 +7,6 @@ import machine_api  # This imports your FastAPI app
 client = TestClient(machine_api.app)
 
 class TestMachineAPI(unittest.TestCase):
-
     def test_get_devices(self):
         response = client.get("/devices")
         self.assertEqual(response.status_code, 200)
@@ -27,7 +26,10 @@ class TestMachineAPI(unittest.TestCase):
             invalid_configs = json.load(f)
 
         for invalid_config in invalid_configs:
+            print()
+            print("Testing invalid config:", invalid_config)
             response = client.post("/config", json=invalid_config)
+            print(response.status_code)
             print(response.json())
             self.assertEqual(response.status_code, 422)
 
