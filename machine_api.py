@@ -8,7 +8,7 @@ from typing import Optional
 import sys
 import json
 import uvicorn
-import os
+import re
 
 from Compression import Compression
 from SerialDevice import SerialDevice
@@ -92,6 +92,10 @@ def validate_config(config: Dict[str, Any]) -> bool:
         if dev["comType"] not in ("usb", "ethernet"):
             print(f"[ERROR] Device '{dev_id}' has invalid comType '{dev['comType']}'")
             return False
+        
+        if not re.match(r'^[0-9.]*$', dev["comAddress"]):
+            print(f"[ERROR] Device '{dev_id}' has invalid comAddress '{dev['comAddress']}'")
+            return False
 
     return True
 
@@ -127,7 +131,6 @@ with open("devices.json", "r") as f:
     
 with open("nucs.json", "r") as f:
     nucs = json.load(f)
-
     app.state.nuc_model = NucModel(
         name=nucs["name"],
         description=nucs["description"],
@@ -147,6 +150,7 @@ def get_config():
 @app.post("/config")
 def update_config(config: NucModel):
     if not validate_config(config.model_dump()):
+        print("Invalid configuration")
         return Response(content=json.dumps({"error": "Invalid configuration"}), status_code=422, media_type="application/json")
     app.state.nuc_model = config
     with open("nucs.json", "w") as f:
