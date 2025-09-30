@@ -6,7 +6,31 @@ import machine_api  # This imports your FastAPI app
 
 client = TestClient(machine_api.app)
 
+class FakeMachine(machine_api.MachineInterface):
+    def __init__(self, device_id="FakeDevice", name="Fake Machine", comAddress="COM1"):
+        self.device_id = device_id
+        self.name = name
+        self.comAddress = comAddress
+
+    def get_status(self):
+        return "Connected"
+
+    def get_data(self):
+        return 101.3
+
 class TestMachineAPI(unittest.TestCase):
+    def setUp(self):
+        machine_api.machines.clear()
+
+    def test_get_devices_content(self):
+        response = client.get("/devices")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(len(data) > 0)
+        for device in data.values():
+            self.assertIn("name", device)
+            self.assertIn("comType", device)
+
     def test_get_devices(self):
         response = client.get("/devices")
         self.assertEqual(response.status_code, 200)
@@ -18,8 +42,7 @@ class TestMachineAPI(unittest.TestCase):
         data = response.json()
         self.assertIn("name", data)
         self.assertIn("devices", data)
-
-    
+ 
 
     def test_update_config_invalid(self):
         with open("tests/invalid_configs.json", "r") as f:
@@ -68,14 +91,26 @@ class TestMachineAPI(unittest.TestCase):
 
     def test_get_status(self):
         response = client.get("/status")
-        self.assertEqual(response.status_code, 200)
         data = response.json()
+        print("response code", response.status_code)
+        print("response", data)
+        self.assertEqual(response.status_code, 200)
         self.assertIn("profile", data)
         self.assertIn("machines", data)
         self.assertIsInstance(data["machines"], list)
 
+    def test_read_valid_device(self):
+        fake_machine = FakeMachine()
+        machine_api.machines.append(fake_machine)
+
+        response = client.get(f"/read/{fake_machine.device_id}")
+        print("response", response.json())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(101.3, fake_machine.get_data())
+
     def test_read_invalid_device(self):
         response = client.get("/read/NonExistentDevice")
+        print("response", response.json())
         self.assertEqual(response.status_code, 200)
         self.assertIn("error", response.json())
 
