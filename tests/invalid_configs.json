@@ -1,0 +1,110 @@
+[
+    {
+        "name": "Compression NUC",
+        "description": "Controls the compression process",
+        "devices": {
+            "scale01": {
+                "comAddress": "3",
+                "name": "Ohaus weegschaal",
+                "description": "Compression test scale",
+                "comType": "invalidtype",
+                "execCommand": "s"
+            },
+            "caliper01": {
+                "comAddress": "7",
+                "name": "Caliper",
+                "description": "Caliper profile",
+                "comType": "usb",
+                "execCommand": "0"
+            },
+            "CompressionBench01": {
+                "id": "CompressionBench01",
+                "name": "Compression bench",
+                "execCommand": "MEASURE",
+                "description": "Compression test scale",
+                "comType": "ethernet",
+                "comAddress": "0.0.0.0"
+            }
+        }
+    },
+    {
+        "name": "Invalid NUC missing device",
+        "description": "NUC with a device not in devices.json",
+        "devices": {
+            "scale01": {
+                "comAddress": "a",
+                "name": "Ohaus weegschaal",
+                "description": "Compression test scale",
+                "comType": "usb",
+                "execCommand": "s"
+            },
+            "unknownDevice": {
+                "comAddress": "1",
+                "name": "Unknown Device",
+                "description": "This device does not exist in devices.json",
+                "comType": "usb",
+                "execCommand": "CMD"
+            }
+        }
+    },
+    {
+        "name": "Invalid NUC missing field",
+        "description": "NUC with a device missing required field",
+        "devices": {
+            "scale01": {
+                "comAddress": "3",
+                "name": "Ohaus weegschaal",
+                "description": "Compression test scale",
+                "comType": "usb"
+            }
+        }
+    },
+    {
+        "name": "",
+        "description": "NUC with a device missing required field",
+        "devices": {
+            "scale01": {
+                "comAddress": "3",
+                "name": "Ohaus weegschaal",
+                "description": "Compression test scale",
+                "comType": "usb"
+            }
+        }
+    },
+    {
+        "name": "Invalid NUC missing field",
+        "description": "",
+        "devices": {
+            "scale01": {
+                "comAddress": "3",
+                "name": "Ohaus weegschaal",
+                "description": "Compression test scale",
+                "comType": "usb"
+            }
+        }
+    },
+    {
+        "name": 1,
+        "description": "NUC with a device missing required field",
+        "devices": {
+            "scale01": {
+                "comAddress": "3",
+                "name": "Ohaus weegschaal",
+                "description": "Compression test scale",
+                "comType": "usb"
+            }
+        }
+    },
+    {
+        "name": "Invalid NUC missing field",
+        "description": 1,
+        "devices": {
+            "scale01": {
+                "comAddress": "3",
+                "name": "Ohaus weegschaal",
+                "description": "Compression test scale",
+                "comType": "usb"
+            }
+        }
+    }
+]
