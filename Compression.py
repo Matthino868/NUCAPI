@@ -1,4 +1,3 @@
-import time
 import requests
 from MachineInterface import MachineInterface
 
