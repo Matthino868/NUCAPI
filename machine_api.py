@@ -201,8 +201,8 @@ def get_status():
 async def read(device: str):
     machine = next((machine for machine in machines if machine.device_id == device), None)
     if machine is None:
-        return {"error": f"Device {device} not found"}
-    
+        return Response(content=json.dumps({"error": f"Device {device} not found"}), status_code=404, media_type="application/json")
+
     print(f"Executing for {machine.device_id}")
 
     try:
@@ -212,7 +212,6 @@ async def read(device: str):
     print("Data:", value)
 
     return value
-
 
 # ---- Entry point ----
 if __name__ == "__main__":
