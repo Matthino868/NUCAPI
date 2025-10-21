@@ -90,6 +90,9 @@ class TestMachineAPI(unittest.TestCase):
         self.assertIn("Configuration updated", str(response.json()))
 
     def test_get_status(self):
+        fake_machine = FakeMachine()
+        machine_api.machines.append(fake_machine)
+        
         response = client.get("/status")
         data = response.json()
         print("response code", response.status_code)
