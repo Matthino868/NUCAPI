@@ -9,7 +9,7 @@
         "name": "Caliper",
         "description": "Caliper profile",
         "comType": "usb",
-        "execCommand": "0"
+        "execCommand": "1"
     },
     "conductivity01": {
         "name": "Conductivity Meter",
