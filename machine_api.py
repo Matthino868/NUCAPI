@@ -1,5 +1,9 @@
 # machine_api.py
+import contextlib
+from platform import machine
 from fastapi import FastAPI, Response
+from fastapi import WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
 from typing import Any, Dict,Literal
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,11 +13,15 @@ import sys
 import json
 import uvicorn
 import re
+import asyncio
 
 from Compression import Compression
 from SerialDevice import SerialDevice
 from MachineInterface import MachineInterface
 import socket
+from starlette.concurrency import run_in_threadpool
+from serial import Serial
+from typing import cast
 
 # ---- Data models ----
 class DeviceProfile(BaseModel):
@@ -212,6 +220,89 @@ async def read(device: str):
     print("Data:", value)
 
     return value
+
+@app.websocket("/ws/{device}")
+async def websocket_device(websocket: WebSocket, device: str):
+    origin = websocket.headers.get("origin")
+    print(f"Incoming WebSocket from {origin}")
+    await websocket.accept()
+
+    # Find the requested machine
+    machine = next((m for m in machines if m.device_id == device), None)
+    if machine is None:
+        await websocket.send_json({"error": f"Device {device} not found"})
+        await websocket.close(code=1008)
+        return
+
+    # Check type
+    if not isinstance(machine, SerialDevice):
+        await websocket.send_json({"error": f"Device {device} is not a serial device"})
+        await websocket.close(code=1008)
+        return
+
+    ser = machine.serialConnection
+    if ser is None or not ser.is_open:
+        await websocket.send_json({"event": "error", "message": "Serial port not open"})
+        await websocket.close(code=1011)
+        return
+
+    # Claim exclusive ownership
+    if hasattr(machine, "begin_stream") and not machine.begin_stream():
+        await websocket.send_json({"event": "error", "message": "Device busy: already streaming"})
+        await websocket.close(code=1013)
+        return
+
+    # Clear input buffer
+    ser.reset_input_buffer()
+
+    stop_event = asyncio.Event()
+
+    # Background listener for client messages
+    async def listen_client():
+        try:
+            while True:
+                msg = await websocket.receive_text()
+                if msg.strip().lower() == "close":
+                    print("Client requested stream stop.")
+                    stop_event.set()
+                    break
+        except WebSocketDisconnect:
+            stop_event.set()
+
+    listener_task = asyncio.create_task(listen_client())
+
+    try:
+        i = 3
+        while i > 0 and not stop_event.is_set():
+            # line = await run_in_threadpool(ser.readline)
+            line = await run_in_threadpool(ser.read_until, b'\r')
+            if not line:
+                await asyncio.sleep(0.05)
+                continue
+            print(f"Read line: {line}")
+            text = line.decode("utf-8", errors="replace").rstrip("\r\n")
+            value = text[5:]  # gives "42.02"
+            await websocket.send_text(value)
+            i -= 1
+
+    except WebSocketDisconnect:
+        print("WebSocket disconnected.")
+
+    finally:
+        stop_event.set()
+        listener_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await listener_task
+
+        if hasattr(machine, "end_stream"):
+            machine.end_stream()
+
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            with contextlib.suppress(Exception):
+                await websocket.close()
+
+    print(f"WebSocket for {device} closed.")
+    return
 
 # ---- Entry point ----
 if __name__ == "__main__":
