@@ -17,7 +17,7 @@
         "comType": "usb",
         "execCommand": "CMD3"
     },
-    "CompressionBench01": {
+    "compression01": {
         "name": "Compression bench",
         "description": "Compression test scale",
         "comType": "ethernet",

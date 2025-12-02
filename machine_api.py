@@ -1,27 +1,26 @@
 # machine_api.py
-import contextlib
-from platform import machine
 from fastapi import FastAPI, Response
 from fastapi import WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.websockets import WebSocketState
 from typing import Any, Dict,Literal
 from pydantic import BaseModel
-from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from typing import Optional
+import contextlib
 import sys
 import json
 import uvicorn
 import re
 import asyncio
+import socket
 
 from Compression import Compression
 from SerialDevice import SerialDevice
 from MachineInterface import MachineInterface
-import socket
 from starlette.concurrency import run_in_threadpool
-from serial import Serial
-from typing import cast
+# from serial import Serial
+# from typing import cast
 
 # ---- Data models ----
 class DeviceProfile(BaseModel):
@@ -44,7 +43,7 @@ machines: list[MachineInterface] = []
 
 def buildmachines():
     machines.clear()
-
+    print(app.state.nuc_model.devices)
     for dev in app.state.nuc_model.devices:
         if devices[dev].comType == "usb":
             try:
@@ -59,7 +58,7 @@ def buildmachines():
                 print(f"[WARN] Could not open serial port: {e}")
         elif devices[dev].comType == "ethernet":
             machine: Optional[MachineInterface] = None
-            if(dev == "CompressionBench01"):
+            if(dev == "compression01"): # Bad implementation: Magic string
                 print("Setting up compression bench:", dev)
                 machine = Compression(
                     api_url=f"http://localhost:8001/jsonrpc",
@@ -207,6 +206,7 @@ def get_status():
 
 @app.get("/read/{device}")
 async def read(device: str):
+    print(machines)
     machine = next((machine for machine in machines if machine.device_id == device), None)
     if machine is None:
         return Response(content=json.dumps({"error": f"Device {device} not found"}), status_code=404, media_type="application/json")
@@ -302,6 +302,114 @@ async def websocket_device(websocket: WebSocket, device: str):
                 await websocket.close()
 
     print(f"WebSocket for {device} closed.")
+    return
+
+@app.websocket("/ws")
+async def websocket_all_devices(websocket: WebSocket):
+    origin = websocket.headers.get("origin")
+    print(f"Incoming aggregated WebSocket from {origin}")
+    await websocket.accept()
+
+    serial_devices = [m for m in machines if isinstance(m, SerialDevice)]
+    if not serial_devices:
+        await websocket.send_json({"error": "No serial devices configured"})
+        await websocket.close(code=1011)
+        return
+
+    active_devices: list[SerialDevice] = []
+    busy_devices: list[str] = []
+    offline_devices: list[str] = []
+
+    for device in serial_devices:
+        ser = device.serialConnection
+        if ser is None or not ser.is_open:
+            offline_devices.append(device.device_id)
+            continue
+        if hasattr(device, "begin_stream") and not device.begin_stream():
+            busy_devices.append(device.device_id)
+            continue
+        active_devices.append(device)
+
+    if not active_devices:
+        message = "No serial devices available"
+        details = []
+        if offline_devices:
+            details.append(f"offline: {', '.join(offline_devices)}")
+        if busy_devices:
+            details.append(f"busy: {', '.join(busy_devices)}")
+        if details:
+            message += f" ({'; '.join(details)})"
+        await websocket.send_json({"error": message})
+        await websocket.close(code=1013 if busy_devices else 1011)
+        return
+
+    if offline_devices:
+        await websocket.send_json({"event": "warning", "message": f"Offline: {', '.join(offline_devices)}"})
+    if busy_devices:
+        await websocket.send_json({"event": "warning", "message": f"Busy: {', '.join(busy_devices)}"})
+
+    await websocket.send_json({"event": "stream_started", "devices": [device.device_id for device in active_devices]})
+
+    for device in active_devices:
+        device.serialConnection.reset_input_buffer() # type: ignore
+
+    stop_event = asyncio.Event()
+    send_lock = asyncio.Lock()
+
+    async def listen_client():
+        try:
+            while True:
+                msg = await websocket.receive_text()
+                if msg.strip().lower() == "close":
+                    print("Client requested aggregated stream stop.")
+                    stop_event.set()
+                    break
+        except WebSocketDisconnect:
+            stop_event.set()
+
+    async def stream_device(device: SerialDevice):
+        ser = device.serialConnection
+        assert ser is not None
+        try:
+            while not stop_event.is_set():
+                line = await run_in_threadpool(ser.read_until, b"\r")
+                if not line:
+                    await asyncio.sleep(0.05)
+                    continue
+                text = line.decode("utf-8", errors="replace").rstrip("\r\n")
+                value = text[5:] if len(text) > 5 else text
+                try:
+                    async with send_lock:
+                        await websocket.send_json({"device": device.device_id, "value": value})
+                except WebSocketDisconnect:
+                    stop_event.set()
+                    break
+        except Exception as exc:
+            print(f"Error streaming {device.device_id}: {exc}")
+            stop_event.set()
+
+    listener_task = asyncio.create_task(listen_client())
+    stream_tasks = [asyncio.create_task(stream_device(device)) for device in active_devices]
+
+    try:
+        await stop_event.wait()
+    finally:
+        stop_event.set()
+        listener_task.cancel()
+        for task in stream_tasks:
+            task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.gather(listener_task, *stream_tasks, return_exceptions=True)
+
+        for device in active_devices:
+            if hasattr(device, "end_stream"):
+                device.end_stream()
+
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            with contextlib.suppress(Exception):
+                await websocket.close()
+
+    print("Aggregated WebSocket closed.")
     return
 
 # ---- Entry point ----
