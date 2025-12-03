@@ -1,11 +1,11 @@
 import requests
-from MachineInterface import MachineInterface
+from MachineAdapterInterface import MachineAdapterInterface
 
-class Compression(MachineInterface):
-    def __init__(self, api_url, api_key, device_id, execCommand, name, comAddress):
-        super().__init__(device_id=device_id, execCommand=execCommand, name=name, comAddress=comAddress)
-        self.api_url = api_url
-        self.api_key = api_key
+class CompressionAdapter(MachineAdapterInterface):
+    def __init__(self, device_id, name, comAddress):
+        super().__init__(device_id=device_id, name=name, comAddress=comAddress)
+        self.api_endpoint = "/jsonrpc"
+        self.api_key = "CHANGE-ME-SOON"
 
     def get_test_acquired_data_and_results(self, test_number)->dict:
         payload = {
@@ -18,7 +18,8 @@ class Compression(MachineInterface):
             "method": "getTestAcquiredDataAndResults",
             "id": "1"
         }
-        response = requests.post(self.api_url, json=payload)
+        url = f"{self.comAddress}{self.api_endpoint}"
+        response = requests.post(url, json=payload)
         response.raise_for_status()
         return response.json()
     
@@ -33,7 +34,7 @@ class Compression(MachineInterface):
         # Get acquired data
         response_data = self.get_test_acquired_data_and_results(list_of_test[-1])
         max_value = max(point["value"] for point in response_data["result"]["list_of_channel_acquired_data"][0]["list_of_data_points"])
-        return max_value+0.0001
+        return max_value
 
     def get_test_status(self, test_number: int) -> bool:
         print("Fetching test status...")
@@ -47,7 +48,9 @@ class Compression(MachineInterface):
                 "test_number": test_number
             },
         }
-        response = requests.post(self.api_url, json=payload)
+        url = f"{self.comAddress}{self.api_endpoint}"
+    
+        response = requests.post(url, json=payload)
         response.raise_for_status()
         print("Response:", response.json())
         if response.json()["result"]["test_status_code"] != "END":
@@ -66,7 +69,9 @@ class Compression(MachineInterface):
 
             },
         }
-        response = requests.post(self.api_url, json=payload)
+        url = f"{self.comAddress}{self.api_endpoint}"
+        print("URL:", url)
+        response = requests.post(url, json=payload)
         response.raise_for_status()
         print("Response:", response.json())
         return response.json()["result"]["list_of_all_test_numbers"]
@@ -82,7 +87,10 @@ class Compression(MachineInterface):
             },
         }
         try:
-            response = requests.post(self.api_url, json=payload)
+            url = f"http://{self.comAddress}:8001{self.api_endpoint}"
+            print("CompressionAdapter get_status URL:", url)
+            print("Payload:", payload)
+            response = requests.post(url, json=payload)
             response.raise_for_status()
             return f"Statuscode {response.json()['result']['machine_status_id']}"
         except requests.RequestException as e:

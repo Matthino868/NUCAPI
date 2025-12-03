@@ -2,11 +2,11 @@ import unittest
 from fastapi.testclient import TestClient
 import json
 
-import machine_api  # This imports your FastAPI app
+import NucApi  # This imports your FastAPI app
 
-client = TestClient(machine_api.app)
+client = TestClient(NucApi.app)
 
-class FakeMachine(machine_api.MachineInterface):
+class FakeMachine(NucApi.MachineAdapterInterface):
     def __init__(self, device_id="FakeDevice", name="Fake Machine", comAddress="COM1"):
         self.device_id = device_id
         self.name = name
@@ -20,7 +20,7 @@ class FakeMachine(machine_api.MachineInterface):
 
 class TestMachineAPI(unittest.TestCase):
     def setUp(self):
-        machine_api.machines.clear()
+        NucApi.machines.clear()
 
     def test_get_devices_content(self):
         response = client.get("/devices")
@@ -91,7 +91,7 @@ class TestMachineAPI(unittest.TestCase):
 
     def test_get_status(self):
         fake_machine = FakeMachine()
-        machine_api.machines.append(fake_machine)
+        NucApi.machines.append(fake_machine)
         
         response = client.get("/status")
         data = response.json()
@@ -104,7 +104,7 @@ class TestMachineAPI(unittest.TestCase):
 
     def test_read_valid_device(self):
         fake_machine = FakeMachine()
-        machine_api.machines.append(fake_machine)
+        NucApi.machines.append(fake_machine)
 
         response = client.get(f"/read/{fake_machine.device_id}")
         print("response", response.json())

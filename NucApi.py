@@ -1,129 +1,67 @@
-# machine_api.py
 from fastapi import FastAPI, Response
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.websockets import WebSocketState
-from typing import Any, Dict,Literal
-from pydantic import BaseModel
 from contextlib import asynccontextmanager
+from starlette.concurrency import run_in_threadpool
 from typing import Optional
 import contextlib
 import sys
 import json
 import uvicorn
-import re
 import asyncio
 import socket
 
-from Compression import Compression
-from SerialDevice import SerialDevice
-from MachineInterface import MachineInterface
-from starlette.concurrency import run_in_threadpool
-# from serial import Serial
-# from typing import cast
+from CompressionAdapter import CompressionAdapter
+from NebestApi import get_config_from_api, load_machines, get_config_from_local, save_config_to_local
+from Models import Machine, MachineAdapterType
+from SerialPortHandler import SerialPortHandler
+from MachineAdapterInterface import MachineAdapterInterface
 
-# ---- Data models ----
-class DeviceProfile(BaseModel):
-    name: str
-    execCommand: str
-    description: str
-    comType: Literal["usb", "ethernet"]
 
-class NucModel(BaseModel):
-    name: str
-    description: str
-    devices: Dict[str, Dict[str, str]]
+machinesAdapters: list[MachineAdapterInterface] = []
 
-# ---- Profile handling ----
-if len(sys.argv) < 2:
-    print("Usage: python3 machine_api.py <profile>. Using default 'compression'")
-    # sys.exit(1)
-
-machines: list[MachineInterface] = []
-
-def buildmachines():
-    machines.clear()
-    print(app.state.nuc_model.devices)
-    for dev in app.state.nuc_model.devices:
-        if devices[dev].comType == "usb":
-            try:
-                machine = SerialDevice(
-                    device_id=dev,
-                    execCommand=devices[dev].execCommand,
-                    comAddress=app.state.nuc_model.devices[dev]['comAddress'],
-                    name=devices[dev].name
-                )
-                machines.append(machine)
-            except Exception as e:
-                print(f"[WARN] Could not open serial port: {e}")
-        elif devices[dev].comType == "ethernet":
-            machine: Optional[MachineInterface] = None
-            if(dev == "compression01"): # Bad implementation: Magic string
-                print("Setting up compression bench:", dev)
-                machine = Compression(
-                    api_url=f"http://localhost:8001/jsonrpc",
-                    api_key="CHANGE-ME-SOON",
-                    device_id=dev,
-                    execCommand=devices[dev].execCommand,
-                    name=devices[dev].name,
-                    comAddress=app.state.nuc_model.devices[dev]['comAddress']
-                )
-                machines.append(machine)
+def buildmachines(machines: dict[str, Machine]):
+    machinesAdapters.clear()
+    for dev in machines:
+        if machines[dev].comType == MachineAdapterType.SERIAL:
+            machine = SerialPortHandler(
+                device_id=dev,
+                comAddress=machines[dev].comAddress,
+                name=machines[dev].name
+            )
+            machinesAdapters.append(machine)
+        elif machines[dev].comType == MachineAdapterType.COMPRESSION:
+            print("Setting up compression bench:", dev)
+            machine = CompressionAdapter(
+                device_id=dev,
+                name=machines[dev].name,
+                comAddress=machines[dev].comAddress
+            )
+            machinesAdapters.append(machine)
         else:
-            print(f"[WARN] Unknown communication port for device {dev}")
+            print(f"[WARN] Unknown adapter type for device {dev}")
 
-    print("Initialized machines:", machines)
-    for machine in machines:
+    print("Initialized machines:", machinesAdapters)
+    for machine in machinesAdapters:
         print(f"Machine {machine.device_id} - {machine.name} at {machine.comAddress}")
-
-def validate_config(config: Dict[str, Any]) -> bool:
-    """Validate the structure of the config.json file."""
-    # print("Validating config:", config)
-    REQUIRED_DEVICE_FIELDS = ["comAddress", "name", "description", "comType", "execCommand"]
-    if "name" not in config or "description" not in config:
-        print("[ERROR] Config missing top-level 'name' or 'description'")
-        return False
-    
-    if not config.get("name") or not isinstance(config["name"], str) or config["name"].strip() == "":
-        print("[ERROR] Config 'name' must be a non-empty string")
-        return False
-
-    if "devices" not in config or not isinstance(config["devices"], dict):
-        print("[ERROR] Config missing 'devices' dictionary")
-        return False
-
-    for dev_id, dev in config["devices"].items():
-        for field in REQUIRED_DEVICE_FIELDS:
-            if field not in dev:
-                print(f"[ERROR] Device '{dev_id}' missing required field '{field}'")
-                return False
-            
-        if dev_id not in devices:
-            print(f"[ERROR] Device '{dev_id}' not found in devices.json")
-            return False
-        
-        # Extra check: ensure comType is valid
-        if dev["comType"] not in ("usb", "ethernet"):
-            print(f"[ERROR] Device '{dev_id}' has invalid comType '{dev['comType']}'")
-            return False
-        
-        if not re.match(r'^[0-9.]*$', dev["comAddress"]):
-            print(f"[ERROR] Device '{dev_id}' has invalid comAddress '{dev['comAddress']}'")
-            return False
-
-    return True
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Starting up... initializing devices")
-    if not validate_config(nucs):
-        print("[FATAL] Invalid configuration")
-    else:
-        buildmachines()
+    try:
+        config = get_config_from_api()
+        machines = load_machines(config)
+        save_config_to_local(machines)
+    except Exception as e:
+        print(f"[FATAL] Could not fetch configuration from API: {e}")
+        config = get_config_from_local()
+        machines = load_machines(config)
+
+    buildmachines(machines)
     
     # hand over control to FastAPI
     yield
-    # ---- Shutdown cleanup ----
     print("Shutting down... closing connections")
 
 # ---- FastAPI app ----
@@ -136,48 +74,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load profiles from devices.json
-with open("devices.json", "r") as f:
-    raw_devices = json.load(f)
-    devices = {name: DeviceProfile(**profile) for name, profile in raw_devices.items()}
-    # print("DEVICES: ", devices)
-    
-with open("nucs.json", "r") as f:
-    nucs = json.load(f)
-    app.state.nuc_model = NucModel(
-        name=nucs["name"],
-        description=nucs["description"],
-        devices=nucs["devices"]
-    )
-    # print("NUC: ", app.state.nuc_model)
+# @app.get("/config")
+# def get_config():
+#     return app.state.nuc_model.model_dump()
 
+# @app.post("/config")
+# def update_config(config: NucModel):
+#     # if not validate_config(config.model_dump()):
+#     #     print("Invalid configuration. Returning 422.")
+#     #     return Response(content=json.dumps({"error": "Invalid configuration"}), status_code=422, media_type="application/json")
+#     app.state.nuc_model = config
+#     # with open("nucs.json", "w") as f:
+#     #     json.dump(config.model_dump(), f, indent=4)
+#     # buildmachines()
 
-@app.get("/devices")
-def get_devices():
-    return devices
-
-@app.get("/config")
-def get_config():
-    return app.state.nuc_model.model_dump()
-
-@app.post("/config")
-def update_config(config: NucModel):
-    if not validate_config(config.model_dump()):
-        print("Invalid configuration. Returning 422.")
-        return Response(content=json.dumps({"error": "Invalid configuration"}), status_code=422, media_type="application/json")
-    app.state.nuc_model = config
-    with open("nucs.json", "w") as f:
-        json.dump(config.model_dump(), f, indent=4)
-    buildmachines()
-
-    print("Updated configuration:", app.state.nuc_model)
-    return {"Configuration updated"}
+#     print("Updated configuration:", app.state.nuc_model)
+#     return {"Configuration updated"}
 
 @app.get("/status")
 def get_status():
-    nuc_model = app.state.nuc_model
-    if not validate_config(nuc_model.model_dump()):
-        return {"error": "Invalid configuration"}
+    # if not validate_config(nuc_model.model_dump()):
+    #     return {"error": "Invalid configuration"}
     
     def get_local_ip():
         try:
@@ -190,8 +107,8 @@ def get_status():
             return "Not found"
 
     return {
-        "profile": nuc_model.name,
-        "description": nuc_model.description,
+        # "profile": nuc_model.name,
+        # "description": nuc_model.description,
         "ip_address": get_local_ip(),
         "machines": [
             {
@@ -200,14 +117,14 @@ def get_status():
                 "comAddress": machine.comAddress,
                 "connected": machine.get_status()
             }
-            for machine in machines
+            for machine in machinesAdapters
         ]
     }
 
 @app.get("/read/{device}")
 async def read(device: str):
-    print(machines)
-    machine = next((machine for machine in machines if machine.device_id == device), None)
+    print(machinesAdapters)
+    machine = next((machine for machine in machinesAdapters if machine.device_id == device), None)
     if machine is None:
         return Response(content=json.dumps({"error": f"Device {device} not found"}), status_code=404, media_type="application/json")
 
@@ -228,14 +145,14 @@ async def websocket_device(websocket: WebSocket, device: str):
     await websocket.accept()
 
     # Find the requested machine
-    machine = next((m for m in machines if m.device_id == device), None)
+    machine = next((m for m in machinesAdapters if m.device_id == device), None)
     if machine is None:
         await websocket.send_json({"error": f"Device {device} not found"})
         await websocket.close(code=1008)
         return
 
     # Check type
-    if not isinstance(machine, SerialDevice):
+    if not isinstance(machine, SerialPortHandler):
         await websocket.send_json({"error": f"Device {device} is not a serial device"})
         await websocket.close(code=1008)
         return
@@ -310,13 +227,13 @@ async def websocket_all_devices(websocket: WebSocket):
     print(f"Incoming aggregated WebSocket from {origin}")
     await websocket.accept()
 
-    serial_devices = [m for m in machines if isinstance(m, SerialDevice)]
+    serial_devices = [m for m in machinesAdapters if isinstance(m, SerialPortHandler)]
     if not serial_devices:
         await websocket.send_json({"error": "No serial devices configured"})
         await websocket.close(code=1011)
         return
 
-    active_devices: list[SerialDevice] = []
+    active_devices: list[SerialPortHandler] = []
     busy_devices: list[str] = []
     offline_devices: list[str] = []
 
@@ -367,7 +284,7 @@ async def websocket_all_devices(websocket: WebSocket):
         except WebSocketDisconnect:
             stop_event.set()
 
-    async def stream_device(device: SerialDevice):
+    async def stream_device(device: SerialPortHandler):
         ser = device.serialConnection
         assert ser is not None
         try:
@@ -380,7 +297,7 @@ async def websocket_all_devices(websocket: WebSocket):
                 value = text[5:] if len(text) > 5 else text
                 try:
                     async with send_lock:
-                        await websocket.send_json({"device": device.device_id, "value": value})
+                        await websocket.send_json({"device": device.name, "value": value})
                 except WebSocketDisconnect:
                     stop_event.set()
                     break
@@ -414,4 +331,4 @@ async def websocket_all_devices(websocket: WebSocket):
 
 # ---- Entry point ----
 if __name__ == "__main__":
-    uvicorn.run("machine_api:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("NucApi:app", host="0.0.0.0", port=8000, reload=True)
