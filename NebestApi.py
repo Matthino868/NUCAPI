@@ -37,7 +37,7 @@ def load_machines(config: list[dict]):
         print("Error fetching config:", e)
         return dict[int, Machine]()
 
-def get_config_from_api(config_url="https://localhost:20100/api/Nuc/config/0"):
+def get_config_from_api(config_url="https://10.80.131.168:20100/api/Nuc/config/0"):
     """
     Fetch NUC configuration from the API and return as a dictionary.
     """
