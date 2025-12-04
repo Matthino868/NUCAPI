@@ -1,4 +1,20 @@
 {
     "1": {
         "name": "Weegschaal",
-        "comType": 
+        "comType": 1,
+        "comAddress": "8",
+        "nucId": 0
+    },
+    "2": {
+        "name": "Schuifmaat",
+        "comType": 1,
+        "comAddress": "11",
+        "nucId": 0
+    },
+    "3": {
+        "name": "Drukbank",
+        "comType": 2,
+        "comAddress": "127.0.0.1",
+        "nucId": 0
+    }
+}

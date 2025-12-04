@@ -1,20 +1,26 @@
+from enum import Enum
 import requests
 import json
 from Models import Machine, MachineAdapterType  
 
-def save_config_to_local(machines: dict[str, Machine], filename="nuc_config.json"):
-    """
-    Save the NUC configuration to a JSON file.
-    """
+def save_config_to_local(machines: dict[int, Machine], filename="nuc_config.json"):
     try:
+        data = {}
+        for k, v in machines.items():
+            d = v.dict()
+            if isinstance(d["comType"], Enum):
+                d["comType"] = d["comType"].value   # or .name if you prefer
+            data[k] = d
+
         with open(filename, 'w') as f:
-            json.dump({k: v.dict() for k, v in machines.items()}, f, indent=4)
+            json.dump(data, f, indent=4)
+
         print(f"Configuration saved to {filename}")
     except Exception as e:
         print(f"Error saving configuration to file: {e}")
 
 def load_machines(config: list[dict]):
-    machines = dict[str, Machine]()
+    machines = dict[int, Machine]()
     try:
         for m in config:
             key = m['machineId']  # machine01, machine02, etc.
@@ -29,7 +35,7 @@ def load_machines(config: list[dict]):
         return machines
     except Exception as e:
         print("Error fetching config:", e)
-        return dict[str, Machine]()
+        return dict[int, Machine]()
 
 def get_config_from_api(config_url="https://localhost:20100/api/Nuc/config/0"):
     """

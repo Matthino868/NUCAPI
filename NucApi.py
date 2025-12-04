@@ -21,7 +21,7 @@ from MachineAdapterInterface import MachineAdapterInterface
 
 machinesAdapters: list[MachineAdapterInterface] = []
 
-def buildmachines(machines: dict[str, Machine]):
+def buildmachines(machines: dict[int, Machine]):
     machinesAdapters.clear()
     for dev in machines:
         if machines[dev].comType == MachineAdapterType.SERIAL:
@@ -74,23 +74,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# @app.get("/config")
-# def get_config():
-#     return app.state.nuc_model.model_dump()
-
-# @app.post("/config")
-# def update_config(config: NucModel):
-#     # if not validate_config(config.model_dump()):
-#     #     print("Invalid configuration. Returning 422.")
-#     #     return Response(content=json.dumps({"error": "Invalid configuration"}), status_code=422, media_type="application/json")
-#     app.state.nuc_model = config
-#     # with open("nucs.json", "w") as f:
-#     #     json.dump(config.model_dump(), f, indent=4)
-#     # buildmachines()
-
-#     print("Updated configuration:", app.state.nuc_model)
-#     return {"Configuration updated"}
-
 @app.get("/status")
 def get_status():
     # if not validate_config(nuc_model.model_dump()):
@@ -107,8 +90,6 @@ def get_status():
             return "Not found"
 
     return {
-        # "profile": nuc_model.name,
-        # "description": nuc_model.description,
         "ip_address": get_local_ip(),
         "machines": [
             {
@@ -122,7 +103,7 @@ def get_status():
     }
 
 @app.get("/read/{device}")
-async def read(device: str):
+async def read(device: int):
     print(machinesAdapters)
     machine = next((machine for machine in machinesAdapters if machine.device_id == device), None)
     if machine is None:
@@ -234,8 +215,8 @@ async def websocket_all_devices(websocket: WebSocket):
         return
 
     active_devices: list[SerialPortHandler] = []
-    busy_devices: list[str] = []
-    offline_devices: list[str] = []
+    busy_devices: list[int] = []
+    offline_devices: list[int] = []
 
     for device in serial_devices:
         ser = device.serialConnection
@@ -251,9 +232,9 @@ async def websocket_all_devices(websocket: WebSocket):
         message = "No serial devices available"
         details = []
         if offline_devices:
-            details.append(f"offline: {', '.join(offline_devices)}")
+            details.append(f"offline: {', '.join(map(str, offline_devices))}")
         if busy_devices:
-            details.append(f"busy: {', '.join(busy_devices)}")
+            details.append(f"busy: {', '.join(map(str, busy_devices))}")
         if details:
             message += f" ({'; '.join(details)})"
         await websocket.send_json({"error": message})
@@ -261,9 +242,9 @@ async def websocket_all_devices(websocket: WebSocket):
         return
 
     if offline_devices:
-        await websocket.send_json({"event": "warning", "message": f"Offline: {', '.join(offline_devices)}"})
+        await websocket.send_json({"event": "warning", "message": f"Offline: {', '.join(map(str, offline_devices))}"})
     if busy_devices:
-        await websocket.send_json({"event": "warning", "message": f"Busy: {', '.join(busy_devices)}"})
+        await websocket.send_json({"event": "warning", "message": f"Busy: {', '.join(map(str, busy_devices))}"})
 
     await websocket.send_json({"event": "stream_started", "devices": [device.device_id for device in active_devices]})
 

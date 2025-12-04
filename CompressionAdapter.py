@@ -18,7 +18,7 @@ class CompressionAdapter(MachineAdapterInterface):
             "method": "getTestAcquiredDataAndResults",
             "id": "1"
         }
-        url = f"{self.comAddress}{self.api_endpoint}"
+        url = f"http://{self.comAddress}:8001{self.api_endpoint}"
         response = requests.post(url, json=payload)
         response.raise_for_status()
         return response.json()
@@ -48,8 +48,8 @@ class CompressionAdapter(MachineAdapterInterface):
                 "test_number": test_number
             },
         }
-        url = f"{self.comAddress}{self.api_endpoint}"
-    
+
+        url = f"http://{self.comAddress}:8001{self.api_endpoint}"
         response = requests.post(url, json=payload)
         response.raise_for_status()
         print("Response:", response.json())
@@ -69,7 +69,7 @@ class CompressionAdapter(MachineAdapterInterface):
 
             },
         }
-        url = f"{self.comAddress}{self.api_endpoint}"
+        url = f"http://{self.comAddress}:8001{self.api_endpoint}"
         print("URL:", url)
         response = requests.post(url, json=payload)
         response.raise_for_status()
