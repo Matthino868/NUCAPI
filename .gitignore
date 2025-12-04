@@ -99,3 +99,4 @@ Desktop.ini
 *.pyc
 *.pyo
 *.pyd
+nuc_config.json
