@@ -4,9 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.websockets import WebSocketState
 from contextlib import asynccontextmanager
 from starlette.concurrency import run_in_threadpool
-from typing import Optional
+from dotenv import load_dotenv
 import contextlib
-import sys
+import os
 import json
 import uvicorn
 import asyncio
@@ -15,6 +15,7 @@ import socket
 from CompressionAdapter import CompressionAdapter
 from NebestApi import get_config_from_api, load_machines, get_config_from_local, save_config_to_local
 from Models import Machine, MachineAdapterType
+from Parsers import caliperParser, scaleParser
 from SerialPortHandler import SerialPortHandler
 from MachineAdapterInterface import MachineAdapterInterface
 
@@ -28,7 +29,25 @@ def buildmachines(machines: dict[int, Machine]):
             machine = SerialPortHandler(
                 device_id=dev,
                 comAddress=machines[dev].comAddress,
-                name=machines[dev].name
+                name=machines[dev].name,
+            )
+            machinesAdapters.append(machine)
+        elif machines[dev].comType == MachineAdapterType.SCALE:
+            print("Setting up scale:", dev)
+            machine = SerialPortHandler(
+                device_id=dev,
+                comAddress=machines[dev].comAddress,
+                name=machines[dev].name,
+                parser=scaleParser
+            )
+            machinesAdapters.append(machine)
+        elif machines[dev].comType == MachineAdapterType.CALIPER:
+            print("Setting up caliper:", dev)
+            machine = SerialPortHandler(
+                device_id=dev,
+                comAddress=machines[dev].comAddress,
+                name=machines[dev].name,
+                parser=caliperParser
             )
             machinesAdapters.append(machine)
         elif machines[dev].comType == MachineAdapterType.COMPRESSION:
@@ -48,7 +67,9 @@ def buildmachines(machines: dict[int, Machine]):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("Starting up... initializing devices")
+    load_dotenv()
+    print("Starting up... initializing devices for with Id:", os.getenv("NUCID", "0"))
+    os.getenv("NUCID", "0")
     try:
         config = get_config_from_api()
         machines = load_machines(config)
@@ -114,13 +135,13 @@ async def read(device: int):
     try:
         value = machine.get_data()
     except Exception as e:
-        return Response(content=json.dumps({"error": f"Compression client error: {str(e)}"}), status_code=409, media_type="application/json")
+        return Response(content=json.dumps({"error": f"Nuc API error: {str(e)}"}), status_code=409, media_type="application/json")
     print("Data:", value)
 
     return value
 
 @app.websocket("/ws/{device}")
-async def websocket_device(websocket: WebSocket, device: str):
+async def websocket_device(websocket: WebSocket, device: int):
     origin = websocket.headers.get("origin")
     print(f"Incoming WebSocket from {origin}")
     await websocket.accept()
@@ -160,6 +181,7 @@ async def websocket_device(websocket: WebSocket, device: str):
         try:
             while True:
                 msg = await websocket.receive_text()
+                print(f"Received message from client: {msg}")
                 if msg.strip().lower() == "close":
                     print("Client requested stream stop.")
                     stop_event.set()
@@ -174,11 +196,14 @@ async def websocket_device(websocket: WebSocket, device: str):
         while i > 0 and not stop_event.is_set():
             # line = await run_in_threadpool(ser.readline)
             line = await run_in_threadpool(ser.read_until, b'\r')
+            print(f"Serial read line: {line}*")
             if not line:
                 await asyncio.sleep(0.05)
                 continue
             print(f"Read line: {line}")
             text = line.decode("utf-8", errors="replace").rstrip("\r\n")
+            # value = device.parser(text) if device.parser else text
+
             value = text[5:]  # gives "42.02"
             await websocket.send_text(value)
             i -= 1
@@ -275,7 +300,12 @@ async def websocket_all_devices(websocket: WebSocket):
                     await asyncio.sleep(0.05)
                     continue
                 text = line.decode("utf-8", errors="replace").rstrip("\r\n")
-                value = text[5:] if len(text) > 5 else text
+                print(f"Read from {device.device_id}: {text}")
+                value = device.parser(text) if device.parser else text
+                # value = text[5:] if len(text) > 5 else text
+                # value = text
+                if value is None:
+                    continue
                 try:
                     async with send_lock:
                         await websocket.send_json({"device": device.name, "value": value})

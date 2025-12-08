@@ -1,7 +1,10 @@
 from enum import Enum
 import requests
 import json
+import os
 from Models import Machine, MachineAdapterType  
+
+
 
 def save_config_to_local(machines: dict[int, Machine], filename="nuc_config.json"):
     try:
@@ -29,7 +32,7 @@ def load_machines(config: list[dict]):
                     # machineId=m["machineId"], 
                     name=m["name"], 
                     comType=MachineAdapterType(m["comType"]), 
-                    comAddress=m["comAddress"], 
+                    comAddress=m["comAddress"],
                     nucId=m["nucId"])
         print("Config machines:", machines)
         return machines
@@ -37,14 +40,22 @@ def load_machines(config: list[dict]):
         print("Error fetching config:", e)
         return dict[int, Machine]()
 
-def get_config_from_api(config_url="https://10.80.131.168:20100/api/Nuc/config/0"):
+def get_config_from_api(config_url: str | None = None):
     """
     Fetch NUC configuration from the API and return as a dictionary.
+
+    If `config_url` is not provided, build it using the `NUCID` environment
+    variable (loaded from `.env` if `python-dotenv` is available). Falls
+    back to `0` if `NUCID` is not set.
     """
-    
+    if config_url is None:
+        nucid = os.getenv("NUCID", "0")
+        config_url = f"https://10.80.134.163:20100/api/Nuc/config/{nucid}"
+
     resp = requests.get(config_url, verify=False)
     resp.raise_for_status()
     data = resp.json()
+    print("Config data:", data)
     return data["machines"]
 
 def get_config_from_local(filename="nuc_config.json"):

@@ -4,12 +4,13 @@ import threading
 import re
 
 class SerialPortHandler(MachineAdapterInterface):
-    def __init__(self, device_id,comAddress, name):
+    def __init__(self, device_id,comAddress, name, parser=None):
         super().__init__(device_id=device_id, comAddress=comAddress, name=name)
         self.comPort = "COM"+comAddress
         # Synchronization primitives to prevent concurrent serial access
         self._serial_lock = threading.Lock()
         self._streaming_flag = threading.Event()
+        self.parser = parser
         try:
             self.serialConnection = Serial(self.comPort, baudrate=9600, timeout=1)
             if self.serialConnection and self.serialConnection.is_open:
