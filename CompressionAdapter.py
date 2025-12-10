@@ -1,7 +1,7 @@
 import requests
-from MachineAdapterInterface import MachineAdapterInterface
+from Models import MachineAdapter
 
-class CompressionAdapter(MachineAdapterInterface):
+class CompressionAdapter(MachineAdapter):
     def __init__(self, device_id, name, comAddress):
         super().__init__(device_id=device_id, name=name, comAddress=comAddress)
         self.api_endpoint = "/jsonrpc"

@@ -17,10 +17,10 @@ from NebestApi import get_config_from_api, load_machines, get_config_from_local,
 from Models import Machine, MachineAdapterType
 from Parsers import caliperParser, scaleParser
 from SerialPortHandler import SerialPortHandler
-from MachineAdapterInterface import MachineAdapterInterface
+from Models import MachineAdapter
 
 nucId = os.getenv("NUCID", "0")
-machinesAdapters: list[MachineAdapterInterface] = []
+machinesAdapters: list[MachineAdapter] = []
 
 def buildmachines(machines: dict[int, Machine]):
     """
@@ -345,4 +345,6 @@ async def websocket_all_devices(websocket: WebSocket):
 
 # ---- Entry point ----
 if __name__ == "__main__":
-    uvicorn.run("NucApi:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("NucApi:app", host="0.0.0.0", port=8000, reload=True,
+                ssl_keyfile="certs/key.pem",
+                ssl_certfile="certs/cert.pem")

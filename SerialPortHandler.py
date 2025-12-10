@@ -1,12 +1,11 @@
-from MachineAdapterInterface import MachineAdapterInterface
+from Models import MachineAdapter
 from serial import Serial
 import threading
-import re
 
-class SerialPortHandler(MachineAdapterInterface):
+class SerialPortHandler(MachineAdapter):
     def __init__(self, device_id,comAddress, name, parser=None):
         super().__init__(device_id=device_id, comAddress=comAddress, name=name)
-        self.comPort = "COM"+comAddress
+        self.comPort = "COM"+str(comAddress)
         # Synchronization primitives to prevent concurrent serial access
         self._serial_lock = threading.Lock()
         self._streaming_flag = threading.Event()
@@ -45,23 +44,3 @@ class SerialPortHandler(MachineAdapterInterface):
 
     def get_data(self) -> float:
         raise NotImplementedError("get_data method is not implemented for SerialPortHandler.")
-    #     if not self.serialConnection:
-    #         print("Serial connection not established.")
-    #         raise Exception("Serial connection not established.")
-    #     if self._streaming_flag.is_set():
-    #         raise Exception("Device busy: streaming over WebSocket")
-    #     command = self.execCommand.encode()+b'\r\n'
-    #     with self._serial_lock:
-    #         print(f"Sending command to {self.name} ({self.comPort}): {command}")
-    #         self.serialConnection.write(command)
-    #         response = self.serialConnection.readline().decode().strip()
-    #     try:
-    #         match = re.search(r'[-+]?\d*\.\d+', response)
-    #         if match:
-    #             response = match.group()
-    #         print(f"Response from {self.name} ({self.comPort}): {response}")
-    #         return float(response)
-    #     except ValueError:
-    #         print(f"Could not convert response to float: {response}")
-    #         raise Exception(f"Invalid data received: {response}")
-        

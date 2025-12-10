@@ -48,9 +48,7 @@ def load_machines(config: list[dict]):
 def get_config_from_api(config_url: str ):
     """
     Fetch NUC configuration from the API and return as a dictionary.
-    """
-    # if config_url is None:
-        
+    """        
 
     resp = requests.get(config_url, verify=False)
     resp.raise_for_status()
