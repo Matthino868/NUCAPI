@@ -19,10 +19,13 @@ from Parsers import caliperParser, scaleParser
 from SerialPortHandler import SerialPortHandler
 from MachineAdapterInterface import MachineAdapterInterface
 
-
+nucId = os.getenv("NUCID", "0")
 machinesAdapters: list[MachineAdapterInterface] = []
 
 def buildmachines(machines: dict[int, Machine]):
+    """
+    Initialize machine adapters based on the provided machine configurations.
+    """
     machinesAdapters.clear()
     for dev in machines:
         if machines[dev].comType == MachineAdapterType.SERIAL:
@@ -67,11 +70,14 @@ def buildmachines(machines: dict[int, Machine]):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    Application lifespan context manager to initialize and clean up resources.
+    """
     load_dotenv()
-    print("Starting up... initializing devices for with Id:", os.getenv("NUCID", "0"))
-    os.getenv("NUCID", "0")
+    print("Starting up... initializing devices for with Id:", nucId)
     try:
-        config = get_config_from_api()
+        config_url = f"https://10.80.130.186:20100/api/Nuc/config/{nucId}"
+        config = get_config_from_api(config_url)
         machines = load_machines(config)
         save_config_to_local(machines)
     except Exception as e:
@@ -96,10 +102,7 @@ app.add_middleware(
 )
 
 @app.get("/status")
-def get_status():
-    # if not validate_config(nuc_model.model_dump()):
-    #     return {"error": "Invalid configuration"}
-    
+def get_status():    
     def get_local_ip():
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
