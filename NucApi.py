@@ -20,6 +20,7 @@ from SerialPortHandler import SerialPortHandler
 from Models import MachineAdapter
 
 nucId = os.getenv("NUCID", "0")
+NEBESTSERVERURL = os.getenv("NEBESTSERVERURL", "acc2-inspectie.nebest.nl")
 machinesAdapters: list[MachineAdapter] = []
 
 def buildmachines(machines: dict[int, Machine]):
@@ -74,16 +75,16 @@ async def lifespan(app: FastAPI):
     Application lifespan context manager to initialize and clean up resources.
     """
     load_dotenv()
-    print("Starting up... initializing devices for with Id:", nucId)
+    print("Starting up... initializing machines for NUC with ID:", nucId)
     try:
-        config_url = f"https://10.80.130.186:20100/api/Nuc/config/{nucId}"
-        config = get_config_from_api(config_url)
-        machines = load_machines(config)
-        save_config_to_local(machines)
+        config_url = f"https://{NEBESTSERVERURL}/api/Nuc/config/{nucId}"
+        api_config = get_config_from_api(config_url)
+        machines = load_machines(api_config["machines"])
+        save_config_to_local(api_config)
     except Exception as e:
         print(f"[FATAL] Could not fetch configuration from API: {e}")
-        config = get_config_from_local()
-        machines = load_machines(config)
+        local_config = get_config_from_local()
+        machines = load_machines(local_config["machines"])
 
     buildmachines(machines)
     
