@@ -5,6 +5,7 @@ from starlette.websockets import WebSocketState
 from contextlib import asynccontextmanager
 from starlette.concurrency import run_in_threadpool
 from dotenv import load_dotenv
+from pathlib import Path
 import contextlib
 import os
 import json
@@ -18,6 +19,9 @@ from Models import Machine, MachineAdapterType
 from Parsers import caliperParser, scaleParser
 from SerialPortHandler import SerialPortHandler
 from Models import MachineAdapter
+
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
 
 nucId = os.getenv("NUCID", "0")
 NEBESTSERVERURL = os.getenv("NEBESTSERVERURL", "acc2-inspectie.nebest.nl")
@@ -64,7 +68,7 @@ def buildmachines(machines: dict[int, Machine]):
             machinesAdapters.append(machine)
         else:
             print(f"[WARN] Unknown adapter type for device {dev}")
-
+            
     print("Initialized machines:", machinesAdapters)
     for machine in machinesAdapters:
         print(f"Machine {machine.device_id} - {machine.name} at {machine.comAddress}")
@@ -74,8 +78,9 @@ async def lifespan(app: FastAPI):
     """
     Application lifespan context manager to initialize and clean up resources.
     """
-    load_dotenv()
     print("Starting up... initializing machines for NUC with ID:", nucId)
+    print("Base directory:", BASE_DIR)
+    print("Fetching configuration from API server at:", NEBESTSERVERURL)
     try:
         config_url = f"https://{NEBESTSERVERURL}/api/Nuc/config/{nucId}"
         api_config = get_config_from_api(config_url)
@@ -342,10 +347,12 @@ async def websocket_all_devices(websocket: WebSocket):
                 await websocket.close()
 
     print("Aggregated WebSocket closed.")
+    
     return
 
 # ---- Entry point ----
 if __name__ == "__main__":
-    uvicorn.run("NucApi:app", host="0.0.0.0", port=8000, reload=True,
-                ssl_keyfile="certs/key.pem",
-                ssl_certfile="certs/cert.pem")
+    uvicorn.run("NucApi:app", host="0.0.0.0", port=8000, reload=False, log_level="info",
+        ssl_keyfile=str(BASE_DIR / "certs/key.pem"),
+        ssl_certfile=str(BASE_DIR / "certs/cert.pem"),
+    )
