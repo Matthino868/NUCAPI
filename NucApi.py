@@ -23,11 +23,8 @@ from Models import MachineAdapter
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
-<<<<<<< HEAD
-=======
 config_location = "Not loaded"
 
->>>>>>> 63632f9753caa8cd2aa6bc555b31e5748d31b87f
 nucId = os.getenv("NUCID", "0")
 NEBESTSERVERURL = os.getenv("NEBESTSERVERURL", "acc2-inspectie.nebest.nl")
 machinesAdapters: list[MachineAdapter] = []
@@ -83,10 +80,7 @@ async def lifespan(app: FastAPI):
     """
     Application lifespan context manager to initialize and clean up resources.
     """
-<<<<<<< HEAD
-=======
     global config_location
->>>>>>> 63632f9753caa8cd2aa6bc555b31e5748d31b87f
     print("Starting up... initializing machines for NUC with ID:", nucId)
     print("Base directory:", BASE_DIR)
     print("Fetching configuration from API server at:", NEBESTSERVERURL)
