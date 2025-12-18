@@ -23,6 +23,11 @@ from Models import MachineAdapter
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
+<<<<<<< HEAD
+=======
+config_location = "Not loaded"
+
+>>>>>>> 63632f9753caa8cd2aa6bc555b31e5748d31b87f
 nucId = os.getenv("NUCID", "0")
 NEBESTSERVERURL = os.getenv("NEBESTSERVERURL", "acc2-inspectie.nebest.nl")
 machinesAdapters: list[MachineAdapter] = []
@@ -78,6 +83,10 @@ async def lifespan(app: FastAPI):
     """
     Application lifespan context manager to initialize and clean up resources.
     """
+<<<<<<< HEAD
+=======
+    global config_location
+>>>>>>> 63632f9753caa8cd2aa6bc555b31e5748d31b87f
     print("Starting up... initializing machines for NUC with ID:", nucId)
     print("Base directory:", BASE_DIR)
     print("Fetching configuration from API server at:", NEBESTSERVERURL)
@@ -86,10 +95,12 @@ async def lifespan(app: FastAPI):
         api_config = get_config_from_api(config_url)
         machines = load_machines(api_config["machines"])
         save_config_to_local(api_config)
+        config_location = "API"
     except Exception as e:
         print(f"[FATAL] Could not fetch configuration from API: {e}")
         local_config = get_config_from_local()
         machines = load_machines(local_config["machines"])
+        config_location = "LOCAL"
 
     buildmachines(machines)
     
@@ -121,6 +132,7 @@ def get_status():
 
     return {
         "ip_address": get_local_ip(),
+        "config_location": config_location,
         "machines": [
             {
                 "device_id": machine.device_id,
@@ -131,6 +143,19 @@ def get_status():
             for machine in machinesAdapters
         ]
     }
+
+@app.get("/logs")
+def get_logs():
+    log_path = BASE_DIR / "logs/stdout.log"
+
+    if not os.path.exists(log_path):
+        return Response(content=json.dumps({"error": f"Nuc API error: Log file not found"}), status_code=404, media_type="application/json")
+    try:
+        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except Exception as e:
+        return Response(content=json.dumps({"error": f"Nuc API error: {str(e)}"}), status_code=500, media_type="application/json")
+
 
 @app.get("/read/{device}")
 async def read(device: int):
@@ -147,7 +172,11 @@ async def read(device: int):
         return Response(content=json.dumps({"error": f"Nuc API error: {str(e)}"}), status_code=409, media_type="application/json")
     print("Data:", value)
 
-    return value
+    return Response(content=json.dumps({
+        "name":machine.name,
+        "value": value
+    }), status_code=200
+    , media_type="application/json")
 
 @app.websocket("/ws/{device}")
 async def websocket_device(websocket: WebSocket, device: int):
