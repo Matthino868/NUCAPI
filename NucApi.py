@@ -86,6 +86,7 @@ async def lifespan(app: FastAPI):
     print("Fetching configuration from API server at:", NEBESTSERVERURL)
     try:
         config_url = f"https://{NEBESTSERVERURL}/api/Nuc/config/{nucId}"
+        print("Configuration URL:", config_url)
         api_config = get_config_from_api(config_url)
         machines = load_machines(api_config["machines"])
         save_config_to_local(api_config)
@@ -129,7 +130,7 @@ def get_status():
         "config_location": config_location,
         "machines": [
             {
-                "device_id": machine.device_id,
+                "machine_id": machine.device_id,
                 "name": machine.name,
                 "comAddress": machine.comAddress,
                 "connected": machine.get_status()

@@ -43,4 +43,36 @@ class SerialPortHandler(MachineAdapter):
             return "Not connected"
 
     def get_data(self) -> float:
-        raise NotImplementedError("get_data method is not implemented for SerialPortHandler.")
+        """
+        Sends '0' over the serial connection and reads a response.
+        Returns the parsed float value.
+        """
+        if not self.serialConnection or not self.serialConnection.is_open:
+            raise Exception("Serial connection not established.")
+
+        with self._serial_lock:
+            # Send command
+            self.serialConnection.write(b'0')
+            self.serialConnection.flush()
+
+            # Read response
+            response = self.serialConnection.readline()
+
+        if not response:
+            raise Exception("No data received from serial device.")
+
+        try:
+            decoded = response.decode('utf-8').strip()
+        except UnicodeDecodeError as e:
+            raise Exception(f"Failed to decode serial response: {e}")
+
+        # Use parser if provided
+        if self.parser:
+            return float(self.parser(decoded))
+
+        # Default behavior: direct float conversion
+        try:
+            return float(decoded)
+        except ValueError as e:
+            raise Exception(f"Invalid numeric data received: '{decoded}'") from e
+        
