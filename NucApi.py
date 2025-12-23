@@ -1,3 +1,4 @@
+import datetime
 from fastapi import FastAPI, Response
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -341,7 +342,7 @@ async def websocket_all_devices(websocket: WebSocket):
                     continue
                 try:
                     async with send_lock:
-                        await websocket.send_json({"device": device.name, "value": value})
+                        await websocket.send_json({"device": device.name, "value": value, "time": datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]})
                 except WebSocketDisconnect:
                     stop_event.set()
                     break
