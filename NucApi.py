@@ -377,7 +377,7 @@ async def websocket_all_devices(websocket: WebSocket):
 
 # ---- Entry point ----
 if __name__ == "__main__":
-    uvicorn.run("NucApi:app", host="0.0.0.0", port=8000, reload=False, log_level="info",
+    uvicorn.run("NucApi:app", host="0.0.0.0", port=8000, reload=True, log_level="info",
         ssl_keyfile=str(BASE_DIR / "certs/key.pem"),
         ssl_certfile=str(BASE_DIR / "certs/cert.pem"),
     )

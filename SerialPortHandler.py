@@ -52,11 +52,12 @@ class SerialPortHandler(MachineAdapter):
 
         with self._serial_lock:
             # Send command
-            self.serialConnection.write(b'0')
-            self.serialConnection.flush()
+            self.serialConnection.write(b'1\r\n')
+            print("serial flushed")
 
             # Read response
             response = self.serialConnection.readline()
+            print(f"Raw response from {self.name}: {response}")
 
         if not response:
             raise Exception("No data received from serial device.")
