@@ -2,7 +2,7 @@ from enum import Enum
 import requests
 import json
 from Models import Machine, MachineAdapterType  
-
+from GenerateToken import build_encrypted_token
 
 
 def save_config_to_local(machines: dict[int, Machine], filename="nuc_config.json"):
@@ -49,11 +49,11 @@ def get_config_from_api(config_url: str )-> dict:
     """
     Fetch NUC configuration from the API and return as a dictionary.
     """        
-
-    resp = requests.get(config_url, verify=False)
+    encrypted_token = build_encrypted_token()
+    resp = requests.get(config_url, verify=False, headers={"Accept": "application/json", "X-Custom-Token": encrypted_token})
+    print("Config data:", resp.text)
     resp.raise_for_status()
     data = resp.json()
-    print("Config data:", data)
     return data
 
 def get_config_from_local(filename="nuc_config.json")-> dict:

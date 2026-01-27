@@ -94,6 +94,7 @@ async def lifespan(app: FastAPI):
         config_location = "API"
     except Exception as e:
         print(f"[FATAL] Could not fetch configuration from API: {e}")
+        print("[FATAL] Falling back to local configuration...")
         local_config = get_config_from_local()
         machines = load_machines(local_config["machines"])
         config_location = "LOCAL"
@@ -161,6 +162,7 @@ async def read(device: int):
         return Response(content=json.dumps({"error": f"Device {device} not found"}), status_code=404, media_type="application/json")
 
     print(f"Executing for {machine.device_id}")
+
 
     try:
         value = machine.get_data()
@@ -336,6 +338,7 @@ async def websocket_all_devices(websocket: WebSocket):
                 text = line.decode("utf-8", errors="replace").rstrip("\r\n")
                 print(f"Read from {device.device_id}: {text}")
                 value = device.parser(text) if device.parser else text
+                print(f"Parsed value from {device.device_id}: {value}")
                 # value = text[5:] if len(text) > 5 else text
                 # value = text
                 if value is None:
