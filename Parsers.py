@@ -1,8 +1,11 @@
 def scaleParser(data: str):
     try:
-        if 'N  ' not in data:
+        # to be researched difference between G and N
+        print(f"scaleParser received data: '{data}'")
+        if 'G  ' not in data:
             return None
-        data = data.replace('N', '')
+        print("Data contains 'G  ', proceeding with parsing.")
+        data = data.replace('G', '')
         data = data.replace(' ', '')
         data = data.replace('\n', '')
         data = data.replace('g', '')
